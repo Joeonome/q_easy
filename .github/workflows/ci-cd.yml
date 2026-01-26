@@ -33,7 +33,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       # ============================================================
       # STEP 3: INSTALL DEPENDENCIES
@@ -399,21 +398,29 @@ jobs:
             
             echo "Setting up Python virtual environment..."
             
-            # Create or update virtual environment
-            if [ ! -d "myenv" ]; then
-              sudo apt-get install python3.12-venv -y
-
-              python3.12 -m venv myenv
-              echo "✅ Virtual environment created"
+            # Use myenv if it exists, otherwise create venv
+            if [ -d "myenv" ]; then
+              VENV_DIR="myenv"
+              echo "✅ Using existing myenv virtual environment"
+            elif [ -d "venv" ]; then
+              VENV_DIR="venv"
+              echo "✅ Using existing venv virtual environment"
             else
-              echo "✅ Virtual environment exists"
+              VENV_DIR="venv"
+              python3 -m venv $VENV_DIR
+              echo "✅ Created new virtual environment: $VENV_DIR"
             fi
             
             # Activate and install dependencies
-            source myenv/bin/activate
-            pip install --upgrade pip 
-            pip install --no-cache-dir -r requirements.txt
-            echo "✅ Dependencies installed"
+            source $VENV_DIR/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+            
+            # Verify critical packages
+            python3 -c "import numpy; print('numpy installed')"
+            python3 -c "import joblib; print('joblib installed')"
+            
+            echo "✅ Python environment ready"
           ENDSSH
 
       # ============================================================
@@ -427,6 +434,12 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             source myenv/bin/activate
             
+            # Detect which virtual environment to use
+            if [ -d "myenv" ]; then
+              VENV_DIR="myenv"
+            else
+              VENV_DIR="venv"
+            fi
             echo "Validating deployment..."
             
             # Check all files exist
@@ -477,10 +490,17 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             
             echo "Starting application..."
+            source $VENV_DIR/bin/activate
+          
+            # Install Node.js and npm (required for PM2)
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+
+            # Install PM2 globally
+            sudo npm install -g pm2
             
-            # Start the application
-            ./start.sh
-            
+            # Start Streamlit with PM2
+            pm2 start streamlit --name q-easy -- run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
             echo "✅ Application started"
           ENDSSH
 
