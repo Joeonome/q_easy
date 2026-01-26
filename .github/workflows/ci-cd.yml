@@ -63,7 +63,7 @@ jobs:
           
           required_files=(
             "feature_engineering.py"
-            "app_fixed.py"
+            "app.py"
             "best_lgbm_model.pkl"
             "scaler.pkl"
             "feature_names.pkl"
@@ -213,7 +213,7 @@ jobs:
           
           # Copy application files
           cp feature_engineering.py deployment/
-          cp app_fixed.py deployment/app.py
+          cp app.py deployment/app.py
           cp best_lgbm_model.pkl deployment/
           cp scaler.pkl deployment/
           cp feature_names.pkl deployment/
@@ -330,7 +330,7 @@ jobs:
             # Update system packages
             sudo apt-get update -qq
             sudo apt-get install nginx -y
-            
+
             # Install Python and dependencies
             sudo apt-get install -y python3 python3-pip python3-venv
             
