@@ -141,6 +141,7 @@ jobs:
       # ============================================================
       - name: 🧪 Run Integration Tests
         run: |
+          source venv/bin/activate
           python - <<EOF
           import joblib
           import pandas as pd
