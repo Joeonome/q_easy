@@ -10,7 +10,7 @@ on:
 env:
   APP_NAME: q-easy
   DEPLOY_PATH: /home/ubuntu/q-easy
-  PYTHON_VERSION: "3.9"
+  PYTHON_VERSION: "3.11"
 
 jobs:
   validate-and-deploy:
@@ -40,7 +40,7 @@ jobs:
       # ============================================================
       - name: 📦 Install Dependencies
         run: |
-          sudo apt install -y python3.11 python3.11-pip python3.11-venv
+          echo "Installing dependencies..." 
           python3 -m venv venv
           source venv/bin/activate
           python -m pip install --upgrade pip
