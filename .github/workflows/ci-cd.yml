@@ -455,7 +455,7 @@ jobs:
             echo "✅ All files present"
             echo "✅ Deployment validation passed (skipped model loading test)"
           ENDSSH
-          
+
       # ============================================================
       # STEP 16: START APPLICATION
       # ============================================================
@@ -467,7 +467,7 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             
             echo "Starting application..."
-            source $VENV_DIR/bin/activate
+            source myenv/bin/activate
           
             # Install Node.js and npm (required for PM2)
             curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
@@ -491,7 +491,7 @@ jobs:
             
             echo "Waiting for application to start..."
             sleep 10
-            
+            source myenv/bin/activate
             # Check if process is running
             if [ -f streamlit.pid ]; then
               PID=$(cat streamlit.pid)
