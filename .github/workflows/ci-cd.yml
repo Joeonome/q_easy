@@ -401,7 +401,7 @@ jobs:
             
             # Create or update virtual environment
             if [ ! -d "myenv" ]; then
-              python3-11 -m venv myenv
+              python3.11 -m venv myenv
               echo "✅ Virtual environment created"
             else
               echo "✅ Virtual environment exists"
