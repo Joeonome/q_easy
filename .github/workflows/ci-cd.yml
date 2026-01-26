@@ -401,7 +401,9 @@ jobs:
             
             # Create or update virtual environment
             if [ ! -d "myenv" ]; then
-              python3.11 -m venv myenv
+              sudo apt-get install python3.12-venv -y
+
+              python3.12 -m venv myenv
               echo "✅ Virtual environment created"
             else
               echo "✅ Virtual environment exists"
@@ -409,7 +411,7 @@ jobs:
             
             # Activate and install dependencies
             source myenv/bin/activate
-            pip install --upgrade pip setuptools wheel
+            pip install --upgrade pip 
             pip install --no-cache-dir -r requirements.txt
             echo "✅ Dependencies installed"
           ENDSSH
