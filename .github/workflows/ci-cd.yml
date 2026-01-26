@@ -342,7 +342,7 @@ jobs:
 
             # Install Python 3.11
             sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils
-            curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.11
+            
 
             sudo apt-get install -y build-essential cmake libomp-dev
             
@@ -401,7 +401,7 @@ jobs:
             
             # Create or update virtual environment
             if [ ! -d "venv" ]; then
-              python3 -m venv venv
+              python3-11 -m venv venv
               echo "✅ Virtual environment created"
             else
               echo "✅ Virtual environment exists"
