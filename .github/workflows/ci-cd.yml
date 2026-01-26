@@ -400,8 +400,8 @@ jobs:
             echo "Setting up Python virtual environment..."
             
             # Create or update virtual environment
-            if [ ! -d "venv" ]; then
-              python3-11 -m myenv venv
+            if [ ! -d "myenv" ]; then
+              python3-11 -m venv myenv
               echo "✅ Virtual environment created"
             else
               echo "✅ Virtual environment exists"
