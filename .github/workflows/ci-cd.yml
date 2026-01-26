@@ -401,14 +401,14 @@ jobs:
             
             # Create or update virtual environment
             if [ ! -d "venv" ]; then
-              python3-11 -m venv venv
+              python3-11 -m myenv venv
               echo "✅ Virtual environment created"
             else
               echo "✅ Virtual environment exists"
             fi
             
             # Activate and install dependencies
-            source venv/bin/activate
+            source myenv/bin/activate
             pip install --upgrade pip setuptools wheel
             pip install -r requirements.txt
             
@@ -424,7 +424,7 @@ jobs:
             set -e
             
             cd ${{ env.DEPLOY_PATH }}
-            source venv/bin/activate
+            source myenv/bin/activate
             
             echo "Validating deployment..."
             
