@@ -2,8 +2,9 @@
 # Core dependencies for the emergency department wait time prediction system
 
 # Data Processing
-pandas
 numpy
+pandas
+
 
 # Machine Learning
 scikit-learn

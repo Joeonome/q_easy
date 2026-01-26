@@ -411,11 +411,6 @@ jobs:
             source myenv/bin/activate
             pip install --upgrade pip setuptools wheel
             pip install -r requirements.txt
-            # 🔥 Force-remove broken numpy
-            pip uninstall -y numpy
-
-            # Reinstall numpy cleanly
-            pip install numpy
             echo "✅ Dependencies installed"
           ENDSSH
 
