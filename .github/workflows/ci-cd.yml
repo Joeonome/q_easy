@@ -448,7 +448,7 @@ jobs:
             echo "✅ All files present"
             
             # Test model loading
-            python3 << EOF
+            python << EOF
           import joblib
           import sys
           
