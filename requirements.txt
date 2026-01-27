@@ -10,6 +10,7 @@ pandas
 scikit-learn
 lightgbm
 joblib
+libgomp1
 
 # Web Application
 streamlit

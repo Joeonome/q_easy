@@ -394,33 +394,9 @@ jobs:
           ssh -i ~/.ssh/ec2_key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
             set -e
             
-            cd ${{ env.DEPLOY_PATH }}
+            chmod +x startapp.sh
+            ./startapp.sh
             
-            echo "Setting up Python virtual environment..."
-            
-            # Use myenv if it exists, otherwise create venv
-            if [ -d "myenv" ]; then
-              VENV_DIR="myenv"
-              echo "✅ Using existing myenv virtual environment"
-            elif [ -d "venv" ]; then
-              VENV_DIR="venv"
-              echo "✅ Using existing venv virtual environment"
-            else
-              VENV_DIR="venv"
-              python3 -m venv $VENV_DIR
-              echo "✅ Created new virtual environment: $VENV_DIR"
-            fi
-            
-            # Activate and install dependencies
-            source $VENV_DIR/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            
-            # Verify critical packages
-            python3 -c "import numpy; print('numpy installed')"
-            python3 -c "import joblib; print('joblib installed')"
-            
-            echo "✅ Python environment ready"
           ENDSSH
 
       # ============================================================
@@ -459,28 +435,28 @@ jobs:
       # ============================================================
       # STEP 16: START APPLICATION
       # ============================================================
-      - name: ▶️ Start Application
-        run: |
-          ssh -i ~/.ssh/ec2_key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
-            set -e
+      # - name: ▶️ Start Application
+      #   run: |
+      #     ssh -i ~/.ssh/ec2_key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+      #       set -e
             
-            cd ${{ env.DEPLOY_PATH }}
+      #       cd ${{ env.DEPLOY_PATH }}
             
-            echo "Starting application..."
+      #       echo "Starting application..."
             
           
-            # Install Node.js and npm (required for PM2)
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+      #       # Install Node.js and npm (required for PM2)
+      #       curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+      #       sudo apt-get install -y nodejs
 
-            # Install PM2 globally
-            sudo npm install -g pm2
+      #       # Install PM2 globally
+      #       sudo npm install -g pm2
             
-            # Start Streamlit with PM2
-            source myenv/bin/activate
-            streamlit run app.py
-            echo "✅ Application started"
-          ENDSSH
+      #       # Start Streamlit with PM2
+      #       source myenv/bin/activate
+      #       streamlit run app.py
+      #       echo "✅ Application started"
+      #     ENDSSH
 
       # ============================================================
       # STEP 17: HEALTH CHECK
