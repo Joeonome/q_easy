@@ -478,8 +478,7 @@ jobs:
             
             # Start Streamlit with PM2
             source myenv/bin/activate
-            pm2 start myenv/bin/streamlit --name q-easy --interpreter python3.12 -- run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false
-
+            streamlit run app.py
             echo "✅ Application started"
           ENDSSH
 
