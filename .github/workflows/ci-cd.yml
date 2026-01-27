@@ -328,25 +328,9 @@ jobs:
             
             echo "Preparing EC2 environment..."
             
-            # Update system packages
-            sudo apt-get update -qq
-            sudo apt-get install nginx -y
-
-            # Install Python and dependencies
-            # Enable Python 3.11 repository
-            sudo apt-get update -qq
-            sudo apt-get install -y software-properties-common
-            sudo add-apt-repository ppa:deadsnakes/ppa -y
-            sudo apt-get update -qq
-
-            # Install Python 3.11
-            sudo apt-get install -y python3.11 python3.11-venv python3.11-distutils
-            
-
-            sudo apt-get install -y build-essential cmake libomp-dev
             
             # Create application directory
-            
+            rm -fr q_easy
             git clone https://github.com/Joeonome/q_easy.git
 
             echo "✅ EC2 environment prepared!"
