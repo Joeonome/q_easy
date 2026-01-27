@@ -467,7 +467,7 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             
             echo "Starting application..."
-            source myenv/bin/activate
+            
           
             # Install Node.js and npm (required for PM2)
             curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
@@ -477,6 +477,7 @@ jobs:
             sudo npm install -g pm2
             
             # Start Streamlit with PM2
+            source myenv/bin/activate
             pm2 start myenv/bin/streamlit --name q-easy --interpreter python3.12 -- run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false
 
             echo "✅ Application started"
