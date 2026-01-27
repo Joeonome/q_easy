@@ -11,6 +11,7 @@ sudo apt install python3.12-venv -y
 python3.12 -m venv myenv
 source myenv/bin/activate
 pip install --no-cache-dir -r requirements.txt
+sudo apt install -y libgomp1
 
 sudo npm install -g pm2
 pm2 start "streamlit run app.py" --name q-easy
