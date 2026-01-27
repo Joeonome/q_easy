@@ -346,8 +346,9 @@ jobs:
             sudo apt-get install -y build-essential cmake libomp-dev
             
             # Create application directory
-            mkdir -p ${{ env.DEPLOY_PATH }}
             
+            git clone https://github.com/Joeonome/q_easy.git
+
             echo "✅ EC2 environment prepared!"
           ENDSSH
 
@@ -393,7 +394,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/ec2_key.pem ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
             set -e
-            
+            cd q_easy
             chmod +x startapp.sh
             ./startapp.sh
             
