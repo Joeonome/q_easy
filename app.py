@@ -572,7 +572,7 @@ with tab1:
         
         col_season, col_weather = st.columns(2)
         with col_season:
-            season = st.selectbox("Season", ["Winter", "Spring", "Summer", "Fall"])
+            season = st.selectbox("Season", ["Dry Season", "Rainy Season"])
         with col_weather:
             weather = st.selectbox("Weather", ["Clear", "Rainy", "Cloudy", "Stormy"])
     
