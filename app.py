@@ -10,13 +10,18 @@ import os
 # Import the feature engineering module
 from feature_engineering import FeatureEngineer
 
+
+LOGO_URL = "https://i.ibb.co/1J2sSj92/q-easy-streamlit-header.png"
+
 # Page configuration
 st.set_page_config(
     page_title="Q-EASY: Hospital Wait Time Predictor",
-    page_icon="🏥",
+    page_icon=LOGO_URL,
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+st.image(LOGO_URL, width=80)
 
 # Load model, scaler, and metadata
 @st.cache_resource
@@ -43,7 +48,257 @@ def load_model_and_metadata():
 # Load at startup
 model, feature_engineer, metadata = load_model_and_metadata()
 
-# Custom CSS (keeping your original styling)
+def get_triage_category(triage_level, wait_time, user_inputs):
+    """
+    Automatically assign triage category based on triage level, 
+    predicted wait time, and clinical signals.
+    
+    Triage Level Interpretation:
+    - Level 1: Resuscitation - Immediate life-threatening (shortest wait)
+    - Level 2: Emergent - Very urgent (very short wait)
+    - Level 3: Urgent - Moderate urgency (moderate wait)
+    - Level 4: Less Urgent - Can wait (longer wait)
+    - Level 5: Non-Urgent - Minor issues (longest wait)
+    
+    Args:
+        triage_level: Integer from 1-5
+        wait_time: Predicted wait time in minutes
+        user_inputs: Dictionary of patient inputs
+        
+    Returns:
+        str: 'Emergency', 'Urgent', or 'Routine'
+    """
+    # Extract relevant clinical signals safely
+    danger_signs = user_inputs.get('danger_signs', [])
+    has_danger_signs = any(sign != "None" for sign in danger_signs)
+    
+    pain_level = user_inputs.get('pain', 0)
+    spo2 = user_inputs.get('spo2', 100)
+    hr = user_inputs.get('hr', 75)
+    bp_sys = user_inputs.get('bp_sys', 120)
+    temp = user_inputs.get('temp', 37.0)
+    
+    # Critical vital signs indicators
+    critical_vitals = (
+        spo2 < 90 or 
+        hr > 120 or hr < 50 or 
+        bp_sys > 180 or bp_sys < 90 or
+        temp > 39.5 or temp < 35.5
+    )
+    
+    # Rule-based categorization
+    # Lower triage levels (1-2) are MORE urgent = Emergency/Urgent
+    # Higher triage levels (4-5) are LESS urgent = Routine
+    if triage_level == 1:
+        return "Emergency"
+    elif triage_level == 2:
+        if has_danger_signs or critical_vitals:
+            return "Emergency"
+        else:
+            return "Urgent"
+    elif triage_level == 3:
+        if has_danger_signs or critical_vitals or pain_level >= 8:
+            return "Urgent"
+        else:
+            return "Routine"
+    elif triage_level == 4:
+        if has_danger_signs or pain_level >= 9 or critical_vitals:
+            return "Urgent"
+        else:
+            return "Routine"
+    else:  # triage_level == 5
+        if has_danger_signs or critical_vitals:
+            return "Urgent"
+        else:
+            return "Routine"
+
+def get_hospital_interventions(wait_time, triage_level, triage_category, user_inputs):
+    """
+    Generate hospital-specific intervention recommendations.
+    
+    Args:
+        wait_time: Predicted wait time in minutes
+        triage_level: Integer from 1-5 (1=most urgent, 5=least urgent)
+        triage_category: 'Emergency', 'Urgent', or 'Routine'
+        user_inputs: Dictionary of patient inputs
+        
+    Returns:
+        list: List of intervention strings
+    """
+    interventions = []
+    
+    # Extract relevant metrics safely with defaults
+    service_queue = user_inputs.get('service_queue', 0)
+    occupancy = user_inputs.get('occupancy', 0)
+    doctor_load = user_inputs.get('doctor_load', 0)
+    shift_doctors = user_inputs.get('shift_doctors', 5)
+    shift_nurses = user_inputs.get('shift_nurses', 10)
+    shift_triage = user_inputs.get('shift_triage', 2)
+    service_occupancy = user_inputs.get('service_occupancy', 0)
+    
+    # Emergency-specific interventions (Triage 1-2)
+    if triage_category == "Emergency" or triage_level <= 2:
+        interventions.append("🚨 PRIORITY: Activate emergency protocol - immediate physician assessment required")
+        interventions.append("💉 Prepare emergency bay and assign dedicated nurse immediately")
+        if wait_time > 15:
+            interventions.append("⚡ CRITICAL: Patient wait exceeds emergency threshold - fast-track immediately and bypass standard queue")
+        if triage_level == 1:
+            interventions.append("🏥 Level 1 Resuscitation - Assign to resuscitation area with full trauma team on standby")
+    
+    # Triage level 1-2 specific interventions
+    if triage_level <= 2:
+        interventions.append("🏥 Assign to resuscitation area or critical care bay")
+        if doctor_load > 6:
+            interventions.append("👨‍⚕️ Redistribute patient load - reassign 2-3 stable patients to available physicians")
+        if wait_time > 10:
+            interventions.append("⏰ URGENT: Triage 1-2 patient waiting >10 minutes - immediate intervention required")
+    
+    # High wait time interventions
+    if wait_time > 90:
+        interventions.append("⏰ Critical wait time alert - escalate to shift supervisor immediately")
+        if service_queue > 8:
+            interventions.append(f"📋 PRIORITY: Prioritize the 3 longest-waiting urgent patients to prevent backlog escalation")
+    elif wait_time > 60:
+        if service_queue > 5:
+            interventions.append("📊 Monitor queue actively - consider opening additional treatment rooms")
+        if triage_level <= 3:
+            interventions.append("⚠️ Urgent/Emergency patient experiencing extended wait - review and expedite if possible")
+    
+    # Staffing interventions
+    if doctor_load > 8:
+        interventions.append(f"👨‍⚕️ High doctor load detected ({doctor_load} patients/doctor) - request additional physician support")
+    
+    if shift_triage < 2 and service_queue > 10:
+        interventions.append("👩‍⚕️ Add 1 extra triage nurse during peak hours (e.g., 10-11 AM) to improve patient flow")
+    
+    if occupancy > 85:
+        interventions.append("🛏️ Hospital near capacity - coordinate with bed management for potential admissions")
+        if service_occupancy > 90:
+            interventions.append("🔄 Service department at critical occupancy - prepare discharge plan for stable patients")
+    
+    # Queue management
+    if service_queue > 15:
+        interventions.append("📢 Implement queue management protocol - provide regular updates to waiting patients")
+        interventions.append("🔍 Review queue for patients suitable for discharge with outpatient follow-up")
+    
+    # Service-specific interventions
+    service = user_inputs.get('service', '')
+    if service == "Surgery" and wait_time > 45:
+        or_avail = user_inputs.get('or_avail', True)
+        if not or_avail:
+            interventions.append("🏥 No OR available - coordinate with regional hospitals for transfer if needed")
+        else:
+            interventions.append("🔧 Prepare OR and surgical team for potential emergency procedure")
+    
+    if service == "Obstetrics & Gynecology":
+        is_pregnant = user_inputs.get('is_pregnant', False)
+        if is_pregnant:
+            interventions.append("🤰 Obstetric patient - notify L&D unit and prepare fetal monitoring equipment")
+            if triage_level <= 2:
+                interventions.append("⚠️ URGENT: High-risk obstetric case - immediate OB/GYN consultation required")
+    
+    if service == "Internal Medicine":
+        if triage_level <= 2:
+            interventions.append("🏥 Urgent ICU care may be needed - alert ICU team and prepare potential admission")
+    
+    # Diagnostic equipment
+    mri_avail = user_inputs.get('mri_avail', True)
+    xray_avail = user_inputs.get('xray_avail', True)
+    
+    if not mri_avail or not xray_avail:
+        unavailable = []
+        if not mri_avail:
+            unavailable.append("MRI")
+        if not xray_avail:
+            unavailable.append("X-ray")
+        interventions.append(f"🔧 {', '.join(unavailable)} currently unavailable - arrange external imaging if critical")
+    
+    # Low priority cases with long waits (Triage 4-5)
+    if triage_level >= 4 and wait_time > 60:
+        interventions.append("💡 Non-urgent case with extended wait - consider offering rescheduling or referral to urgent care clinic")
+    
+    return interventions
+
+def get_patient_guidance(wait_time, triage_level, triage_category, user_inputs):
+    """
+    Generate patient-specific guidance and expectations.
+    
+    Args:
+        wait_time: Predicted wait time in minutes
+        triage_level: Integer from 1-5 (1=most urgent, 5=least urgent)
+        triage_category: 'Emergency', 'Urgent', or 'Routine'
+        user_inputs: Dictionary of patient inputs
+        
+    Returns:
+        list: List of guidance strings
+    """
+    guidance = []
+    
+    pain_level = user_inputs.get('pain', 0)
+    danger_signs = user_inputs.get('danger_signs', [])
+    has_danger_signs = any(sign != "None" for sign in danger_signs)
+    
+    # Emergency category guidance (Triage 1-2)
+    if triage_category == "Emergency" or triage_level <= 2:
+        guidance.append("🚨 You will be seen immediately - this is a medical emergency")
+        guidance.append("🛏️ Please proceed to the emergency treatment area as directed by staff")
+        guidance.append("👨‍👩‍👧 Family members may be asked to wait in the designated area")
+        if triage_level == 1:
+            guidance.append("⚕️ You are our highest priority - medical team is being assembled now")
+        return guidance  # Return early for emergency cases
+    
+    # Wait time expectations
+    if wait_time < 15:
+        guidance.append(f"⏱️ Expected wait time: {int(wait_time)} minutes - You will be seen very soon")
+        guidance.append("⚡ High priority case - you're near the front of the queue")
+    elif wait_time < 30:
+        guidance.append(f"⏱️ Expected wait time: {int(wait_time)} minutes - You should be seen shortly")
+    elif wait_time < 60:
+        guidance.append(f"⏱️ Expected wait time: {int(wait_time)} minutes - Average wait for your condition")
+        guidance.append("☕ Feel free to use the waiting area facilities (restroom, water fountain)")
+    else:
+        guidance.append(f"⏱️ Expected wait time: {int(wait_time)} minutes - Longer than average due to current demand")
+        guidance.append("🍽️ You may have time for a light snack if your condition allows")
+        guidance.append("📱 Consider notifying family members of the extended wait")
+    
+    # Triage-specific guidance
+    if triage_level <= 2:
+        guidance.append("⚠️ Your condition is urgent - you will be prioritized over routine cases")
+        guidance.append("📍 Please stay in the waiting area and inform staff immediately if symptoms worsen")
+    elif triage_level == 3:
+        guidance.append("📋 You are in the standard priority queue")
+        if has_danger_signs:
+            guidance.append("⚠️ Alert staff immediately if you experience any danger signs")
+    else:  # Triage 4-5
+        guidance.append("📋 Your condition is non-urgent - more critical cases will be seen first")
+        if triage_level == 5:
+            guidance.append("🏠 Consider: If symptoms remain mild, an outpatient appointment or urgent care clinic may be faster")
+    
+    # Pain management
+    if pain_level >= 7:
+        guidance.append("💊 Pain medication may be available - please request from triage nurse if needed")
+    
+    # Symptom monitoring
+    if triage_category == "Urgent" or triage_level <= 3:
+        guidance.append("👀 Monitor your symptoms - inform staff immediately if you experience:")
+        symptoms_to_watch = []
+        
+        if pain_level >= 5:
+            symptoms_to_watch.append("Worsening or severe pain")
+        symptoms_to_watch.append("Difficulty breathing or chest pain")
+        symptoms_to_watch.append("Loss of consciousness or confusion")
+        symptoms_to_watch.append("Heavy bleeding or severe allergic reaction")
+        
+        for symptom in symptoms_to_watch:
+            guidance.append(f"  • {symptom}")
+    
+    # General comfort
+    guidance.append("💺 Make yourself comfortable in the waiting area")
+    guidance.append("❓ Don't hesitate to ask staff questions about your wait or condition")
+    
+    return guidance
+
+# Custom CSS - FIXED: Ensured text is visible with proper contrast
 st.markdown("""
     <style>
     .main {
@@ -89,16 +344,59 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         margin: 10px 0;
     }
+    .intervention-card {
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 4px solid #667eea;
+        margin: 10px 0;
+        color: #333;
+        font-size: 15px;
+        line-height: 1.6;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .emergency-badge {
+        background: #dc3545;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: bold;
+        display: inline-block;
+        font-size: 16px;
+    }
+    .urgent-badge {
+        background: #ffc107;
+        color: #000;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: bold;
+        display: inline-block;
+        font-size: 16px;
+    }
+    .routine-badge {
+        background: #28a745;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: bold;
+        display: inline-block;
+        font-size: 16px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # Header
-st.markdown("<h1>🏥 Q-EASY</h1>", unsafe_allow_html=True)
+st.markdown("<h1>Q-EASY</h1>", unsafe_allow_html=True)
 st.markdown("<p class='subtitle'>AI-Powered Hospital Wait Time Prediction System</p>", unsafe_allow_html=True)
 
 def predict_wait_time(user_inputs):
     """
     Make prediction using the trained model.
+    
+    IMPORTANT: The model was trained with REVERSED triage encoding:
+    - Model expects: 5=most urgent, 1=least urgent
+    - Users provide: 1=most urgent, 5=least urgent
+    - Solution: Reverse triage level before prediction (6 - triage_level)
     
     Args:
         user_inputs: Dictionary containing all user inputs
@@ -117,8 +415,16 @@ def predict_wait_time(user_inputs):
         return wait_minutes, lower_bound, upper_bound
     
     try:
+        # CRITICAL FIX: Reverse triage level for model
+        # User input: 1=most urgent, 5=least urgent (medical standard)
+        # Model expects: 5=most urgent, 1=least urgent (reversed)
+        # Transform: new_triage = 6 - user_triage
+        model_inputs = user_inputs.copy()
+        original_triage = user_inputs['triage_level']
+        model_inputs['triage_level'] = 6 - original_triage
+        
         # Create feature vector using the feature engineer
-        X = feature_engineer.create_features(user_inputs)
+        X = feature_engineer.create_features(model_inputs)
         
         # Validate features
         is_valid, error_msg = feature_engineer.validate_features(X)
@@ -133,7 +439,7 @@ def predict_wait_time(user_inputs):
         wait_minutes = np.exp(log_wait_pred)
         
         # Calculate confidence interval using model's RMSE from metadata
-        std = metadata.get('model_rmse', 0.3)
+        std = metadata.get('model_rmse', 0.3) if metadata else 0.3
         lower_bound = np.exp(log_wait_pred - 1.96 * std)
         upper_bound = np.exp(log_wait_pred + 1.96 * std)
         
@@ -163,17 +469,17 @@ with tab1:
         with col_hr:
             hr = st.number_input("Heart Rate (bpm)", 40, 200, 75)
         with col_rr:
-            rr = st.number_input("Resp. Rate (bpm)", 8, 40, 16)
+            rr = st.number_input("Resp. Rate (cpm)", 8, 40, 16)
         
         col_sys, col_dia = st.columns(2)
         with col_sys:
-            bp_sys = st.number_input("BP Systolic", 70, 220, 120)
+            bp_sys = st.number_input("BP Systolic (mmHg)", 70, 240, 120)
         with col_dia:
-            bp_dia = st.number_input("BP Diastolic", 40, 140, 80)
+            bp_dia = st.number_input("BP Diastolic (mmHg)", 40, 140, 80)
         
         col_spo2, col_pain = st.columns(2)
         with col_spo2:
-            spo2 = st.number_input("SpO2 (%)", 70, 100, 98)
+            spo2 = st.number_input("SpO2 (%)", 60, 100, 98)
         with col_pain:
             pain = st.slider("Pain (0-10)", 0, 10, 3)
     
@@ -184,33 +490,37 @@ with tab1:
             "Pediatrics",
             "Surgery",
             "Internal Medicine",
-            "Cardiology"
+            "Obstetrics & Gynecology",
         ])
         
         complaint = st.selectbox("Primary Complaint", [
             "Chest Pain",
-            "Diabetes",
+            "Cough",
+            "Frequent Urination",
             "Fever",
             "Headache",
-            "Hypertension",
-            "Malaria",
+            "Blurred Vision",
             "Pregnancy",
-            "Respiratory",
+            "Difficulty Breathing",
             "Trauma",
             "Other"
         ])
         
         danger_signs = st.multiselect("Danger Signs", [
+            "Loss of Consciousness",
+            "High Fever",
             "Altered Mental Status",
             "Severe Bleeding",
             "Difficulty Breathing",
-            "Chest Pain",
+            "Severe Chest Pain",
             "None"
         ], default=["None"])
     
     # Hospital Conditions
-    with st.expander("🏥 Hospital Conditions", expanded=False):
-        triage_level = st.selectbox("Triage Level", [1, 2, 3, 4, 5], index=2)
+    with st.expander("🏥 Hospital Conditions", expanded=True):
+        triage_level = st.selectbox("Triage Level (1=Most Urgent, 5=Least Urgent)", [1, 2, 3, 4, 5], index=2)
+        st.caption("Level 1: Resuscitation | Level 2: Emergent | Level 3: Urgent | Level 4: Less Urgent | Level 5: Non-Urgent")
+        
         is_pregnant = st.checkbox("Patient is Pregnant", value=False)
         
         col_occ, col_load = st.columns(2)
@@ -307,12 +617,21 @@ with tab1:
         }
         
         # Make prediction
-        with st.spinner("Making prediction..."):
+        with st.spinner("🔄 Making prediction..."):
             result = predict_wait_time(user_inputs)
         
         if result is not None:
+            wait_time, lower, upper = result
+            
+            # Get triage category
+            triage_category = get_triage_category(triage_level, wait_time, user_inputs)
+            
+            # Store in session state
             st.session_state.prediction = result
+            st.session_state.triage_category = triage_category
+            st.session_state.user_inputs = user_inputs
             st.session_state.has_prediction = True
+            
             st.success("✅ Prediction complete! Check the 'Results & Info' tab")
         else:
             st.error("❌ Prediction failed. Please check your inputs and try again.")
@@ -320,6 +639,17 @@ with tab1:
 with tab2:
     if 'has_prediction' in st.session_state and st.session_state.has_prediction:
         wait_time, lower, upper = st.session_state.prediction
+        triage_category = st.session_state.get('triage_category', 'Routine')
+        user_inputs = st.session_state.get('user_inputs', {})
+        triage_level = user_inputs.get('triage_level', 3)
+        
+        # Triage category badge
+        badge_class = f"{triage_category.lower()}-badge"
+        st.markdown(f"""
+            <div style='text-align: center; margin-bottom: 20px;'>
+                <span class='{badge_class}'>{triage_category.upper()}</span>
+            </div>
+        """, unsafe_allow_html=True)
         
         st.markdown("### 🎯 Prediction Results")
         
@@ -339,21 +669,26 @@ with tab2:
         """, unsafe_allow_html=True)
         
         # Metrics
-        st.markdown("### Key Metrics")
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
+        st.markdown("### 📊 Key Metrics")
+        metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
         
         with metric_col1:
-            st.metric("Triage", f"Level {triage_level}", delta="Moderate" if triage_level == 3 else "")
+            st.metric("Triage", f"Level {triage_level}", delta=triage_category)
         
         with metric_col2:
-            st.metric("Queue", f"{service_queue}", delta="-3")
+            service_queue = user_inputs.get('service_queue', 0)
+            st.metric("Queue", f"{service_queue}", delta="-3" if service_queue > 5 else "Low")
         
         with metric_col3:
+            occupancy = user_inputs.get('occupancy', 0)
+            st.metric("Occupancy", f"{occupancy}%", delta="High" if occupancy > 80 else "Normal")
+        
+        with metric_col4:
             r2_score = metadata.get('model_r2', 0.8872) if metadata else 0.8872
             st.metric("Model R²", f"{r2_score:.1%}", delta="High")
         
         # Gauge chart
-        st.markdown("### Wait Time Distribution")
+        st.markdown("### ⏱️ Wait Time Distribution")
         
         fig = go.Figure(go.Indicator(
             mode="gauge+number+delta",
@@ -389,42 +724,53 @@ with tab2:
         
         st.plotly_chart(fig, use_container_width=True)
         
+        # Hospital Interventions
+        st.markdown("---")
+        st.markdown("### 🏥 Recommended Hospital Interventions")
+        
+        hospital_interventions = get_hospital_interventions(
+            wait_time, triage_level, triage_category, user_inputs
+        )
+        
+        if hospital_interventions:
+            for intervention in hospital_interventions:
+                st.markdown(f"""
+                    <div class='intervention-card'>
+                        {intervention}
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+                <div class='intervention-card' style='border-left-color: #28a745;'>
+                    ✅ No special interventions needed - standard care protocol applies
+                </div>
+            """, unsafe_allow_html=True)
+        
+        # Patient Guidance
+        st.markdown("---")
+        st.markdown("### 👤 Patient Guidance & Expectations")
+        
+        patient_guidance = get_patient_guidance(
+            wait_time, triage_level, triage_category, user_inputs
+        )
+        
+        if patient_guidance:
+            for guide in patient_guidance:
+                st.markdown(f"""
+                    <div class='intervention-card' style='border-left-color: #28a745;'>
+                        {guide}
+                    </div>
+                """, unsafe_allow_html=True)
+        
     else:
         st.info("👈 Go to 'Patient Input' tab and click 'Predict Wait Time' to see results")
-    
-    # Model info
-    st.markdown("---")
-    if metadata:
-        r2 = metadata.get('model_r2', 0.8872)
-        rmse = metadata.get('model_rmse', 0.3)
-        n_features = len(metadata.get('feature_names', []))
-        
-        st.markdown(f"""
-            <div class='info-card'>
-                <h3 style='color: #667eea;'>🤖 Model Information</h3>
-                <ul style='color: #666; margin: 0; padding-left: 20px;'>
-                    <li><strong>Algorithm:</strong> LightGBM Regressor</li>
-                    <li><strong>R² Score:</strong> {r2:.4f} ({r2:.2%})</li>
-                    <li><strong>RMSE:</strong> {rmse:.4f}</li>
-                    <li><strong>Features:</strong> {n_features} variables</li>
-                    <li><strong>Target:</strong> Log-transformed wait time</li>
-                </ul>
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-            <div class='info-card'>
-                <h3 style='color: #667eea;'>🤖 Model Information</h3>
-                <p style='color: #666;'>Model metadata not available</p>
-            </div>
-        """, unsafe_allow_html=True)
 
 # Footer
 st.markdown("---")
 st.markdown("""
     <div style='text-align: center; color: white; opacity: 0.8; padding: 20px;'>
         <p style='font-size: clamp(0.9em, 2.5vw, 1em);'>
-            🏥 Q-EASY: Improving Patient Experience Through AI
+            Q-EASY: Improving Healthcare Experience Through AI
         </p>
         <p style='font-size: clamp(0.8em, 2vw, 0.9em);'>
             Powered by LightGBM • Built with Streamlit
